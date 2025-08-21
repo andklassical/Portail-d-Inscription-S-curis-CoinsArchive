@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Confirmation de Paiement - CoinsArchive</title>
+<style>
+  :root{
+    --blue:#007bff;
+    --blue-dark:#0056b3;
+    --green:#28a745;
+    --green-dark:#1f7a34;
+    --yellow-bg:#fff3cd;
+    --yellow-text:#856404;
+    --red:#d93025;
+    --bg:#f0f4f8;
+    --text:#333;
+    --card:#fff;
+  }
+  html, body { margin:0; padding:0; font-family:Arial,Helvetica,sans-serif; background:var(--bg); color:var(--text); }
+  body { display:flex; flex-direction:column; align-items:center; min-height:100vh; }
+
+  .container { width:100%; max-width:560px; background:var(--card); padding:24px; border-radius:16px; box-shadow:0 8px 24px rgba(0,0,0,0.12); text-align:center; margin:20px auto; }
+
+  h1, h2, h3 { margin:0 0 12px; }
+  h1 { color:var(--blue); font-size:1.6rem; }
+  h2 { color:#222; font-size:1.25rem; }
+  h3 { color:#222; font-size:1.1rem; margin-top:18px; }
+
+  .steps { text-align:left; background:#eef4ff; border:1px solid #d9e6ff; color:#24456b; padding:12px; border-radius:10px; font-size:0.95rem; margin-bottom:14px; }
+  .steps strong{ color:var(--blue); }
+
+  .wallet-box { background:#e8f0fe; padding:14px; border-radius:10px; margin-bottom:10px; font-weight:bold; font-size:16px; word-break:break-all; color:#0056b3; box-shadow:0 3px 8px rgba(0,0,0,0.05); }
+
+  .actions-row{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+
+  .btn { padding:10px 18px; background:var(--blue); border:none; border-radius:10px; color:#fff; cursor:pointer; font-weight:bold; font-size:15px; transition:0.25s; }
+  .btn:hover { background:var(--blue-dark); }
+  .btn:disabled{ opacity:.6; cursor:not-allowed; }
+
+  .btn-secondary{ background:#1f3b8a; } .btn-secondary:hover{ background:#152a64; }
+  .btn-success{ background:var(--green); } .btn-success:hover{ background:var(--green-dark); }
+
+  .field { text-align:left; margin:12px 0; }
+  .label { display:block; font-weight:bold; margin-bottom:6px; }
+  .input, .file { width:100%; padding:12px; border:1px solid #cfd4dc; border-radius:10px; font-size:15px; background:#fbfdff; }
+  .hint { font-size:0.85rem; color:#667085; margin-top:6px; }
+  .error { font-size:0.9rem; color:#fff; background:var(--red); padding:10px 12px; border-radius:10px; margin-top:10px; text-align:left; display:none; }
+  .info { background:var(--yellow-bg); color:var(--yellow-text); padding:12px; border-radius:10px; border:1px solid #ffeeba; margin-top:14px; text-align:left; font-size:0.95rem; }
+
+  .qr { margin:14px 0 4px; }
+  .qr img{ width:160px; height:160px; border-radius:10px; box-shadow:0 3px 10px rgba(0,0,0,.08); }
+
+  /* Fixed membership code (shown after confirmation) */
+  .membership-code-fixed {
+    display:none;
+    position:fixed;
+    top:14px;
+    left:50%;
+    transform:translateX(-50%);
+    background:#dff6e0;
+    border:3px solid var(--green);
+    padding:18px 22px;
+    border-radius:14px;
+    font-size:30px;
+    font-weight:bold;
+    color:var(--green);
+    text-align:center;
+    z-index:1000;
+    box-shadow:0 0 20px rgba(40,167,69,0.65);
+    animation: glow 1.5s infinite alternate;
+  }
+  .membership-code-fixed .mini { display:block; font-size:14px; font-weight:600; color:#1c6b2a; margin-bottom:4px; }
+
+  @keyframes glow { from{ box-shadow:0 0 16px rgba(40,167,69,.55);} to{ box-shadow:0 0 28px rgba(40,167,69,1);} }
+
+  /* Reviewing overlay */
+  .overlay {
+    position:fixed; inset:0; background:rgba(255,255,255,.85); display:none; align-items:center; justify-content:center; z-index:900;
+  }
+  .overlay-card{
+    background:#ffffff; border:1px solid #e5e7eb; padding:22px; border-radius:14px; width:min(92vw,420px); text-align:center; box-shadow:0 8px 28px rgba(0,0,0,.15);
+  }
+  .spinner { width:44px; height:44px; border:4px solid #cfe3ff; border-top-color:var(--blue); border-radius:50%; margin:10px auto 12px; animation:spin 1s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg);} }
+  .progress { width:100%; height:10px; background:#e6edf7; border-radius:999px; overflow:hidden; }
+  .progress > div{ width:0%; height:100%; background:var(--blue); transition:width .2s; }
+
+  .success { display:none; padding:16px; background:#e9f9ee; border:2px dashed var(--green); border-radius:14px; margin-top:14px; color:#1c6b2a; font-weight:600; }
+
+  .continue-card { display:none; margin:16px auto 24px; width:100%; max-width:560px; text-align:center; }
+  .continue-btn { display:inline-block; padding:14px 22px; font-size:18px; font-weight:bold; background:var(--green); color:#fff; border:none; border-radius:12px; cursor:pointer; text-decoration:none; transition:.25s; }
+  .continue-btn:hover { background:var(--green-dark); }
+
+  /* Accessibility live region */
+  .sr-live { position:absolute; left:-99999px; height:1px; width:1px; overflow:hidden; }
+</style>
+</head>
+<body>
+
+<div class="sr-live" aria-live="polite" id="liveRegion"></div>
+
+<div class="container" id="mainContainer">
+  <h1>💳 Confirmation de Paiement</h1>
+  <p>Veuillez envoyer <strong>203&nbsp;$ en BTC</strong> à l’adresse ci-dessous puis fournissez votre preuve de paiement.</p>
+
+  <div class="wallet-box" id="walletAddress">bc1qzkd2k6ydt3hm9zjz8znmsdclcvyuhp4v59lfj8</div>
+  <div class="actions-row">
+    <button class="btn" type="button" onclick="copyWallet()">Copier l’adresse</button>
+    <a class="btn btn-secondary" href="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=bc1qzkd2k6ydt3hm9zjz8znmsdclcvyuhp4v59lfj8" target="_blank" rel="noopener">Ouvrir le QR en grand</a>
+  </div>
+  <div class="qr" aria-hidden="true">
+    <img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=bc1qzkd2k6ydt3hm9zjz8znmsdclcvyuhp4v59lfj8" alt="QR Code de l’adresse BTC">
+  </div>
+
+  <h3>Soumettre votre preuve de paiement</h3>
+  <form id="paymentForm" novalidate>
+    <div class="field">
+      <label class="label" for="txid">ID de transaction (TXID)</label>
+      <input class="input" id="txid" name="txid" type="text" inputmode="latin" autocapitalize="none" autocomplete="off" placeholder="Exemple : 64 caractères hexadécimaux" />
+      <div class="hint">Accepte un hash de 64 caractères (0–9, a–f). L’un des deux justificatifs est requis : TXID valide ou capture du reçu.</div>
+    </div>
+
+    <div class="field">
+      <label class="label" for="fileUpload">Ou téléversez une capture du reçu (PNG/JPG, max 2&nbsp;Mo)</label>
+      <input class="file" id="fileUpload" name="fileUpload" type="file" accept="image/png,image/jpeg" />
+      <div class="hint">Formats autorisés : .png, .jpg. Taille maximale : 2&nbsp;Mo.</div>
+    </div>
+
+    <div id="formError" class="error" role="alert"></div>
+
+    <div class="actions-row">
+      <button id="confirmBtn" type="submit" class="btn">Confirmer le paiement</button>
+    </div>
+  </form>
+
+  <div class="info">
+    ℹ Après confirmation, votre <strong>code d’adhésion</strong> s’affichera en haut de l’écran. Utilisez ce code pour finaliser votre inscription et votre retrait sera traité sous <strong>48&nbsp;heures</strong>.
+  </div>
+
+  <div id="successMsg" class="success">✅ Paiement confirmé. Votre code est affiché en haut. Poursuivez l’inscription.</div>
+</div>
+
+<!-- Fixed membership code shown after success -->
+<div class="membership-code-fixed" id="membershipCodeBox" aria-live="polite">
+  <span class="mini">Code d’adhésion</span>
+  <span id="membershipCode">13598</span>
+  <div style="margin-top:10px;">
+    <button class="btn" type="button" onclick="copyCode()">Copier le code</button>
+  </div>
+</div>
+
+<!-- Continue section -->
+<div class="continue-card" id="continueContainer">
+  <div class="container" style="margin:0 auto;">
+    <p>Après avoir copié votre code, cliquez ci-dessous pour compléter votre inscription sur CoinsArchive.</p>
+    <a href="https://coinsarchive.net/register" target="_blank" rel="noopener" class="continue-btn">Continuer vers l’inscription</a>
+  </div>
+</div>
+
+<!-- Reviewing overlay -->
+<div class="overlay" id="overlay" aria-modal="true" role="dialog" aria-labelledby="overlayTitle">
+  <div class="overlay-card">
+    <h2 id="overlayTitle" style="margin-bottom:6px;">Vérification du paiement…</h2>
+    <div class="spinner"></div>
+    <p style="margin:6px 0 12px;">Merci de patienter quelques secondes pendant le contrôle.</p>
+    <div class="progress" aria-hidden="true"><div id="progressBar"></div></div>
+  </div>
+</div>
+
+<script>
+  const ADDRESS = "bc1qzkd2k6ydt3hm9zjz8znmsdclcvyuhp4v59lfj8";
+  const REQUIRED_HEX_LEN = 64;
+  const MAX_FILE_BYTES = 2 * 1024 * 1024; // 2 Mo
+
+  function copyWallet() {
+    const wallet = ADDRESS;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(wallet).then(() => notify("Adresse copiée."));
+    } else {
+      fallbackCopyText(wallet);
+    }
+  }
+
+  function copyCode() {
+    const code = document.getElementById("membershipCode").innerText.trim();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(code).then(() => notify("Code d’adhésion copié."));
+    } else {
+      fallbackCopyText(code);
+    }
+  }
+
+  function fallbackCopyText(text){
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "absolute";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); notify("Copié dans le presse-papiers."); } catch(e){}
+    document.body.removeChild(ta);
+  }
+
+  function notify(msg){
+    const live = document.getElementById("liveRegion");
+    live.textContent = msg;
+    // Optional toast:
+    alert(msg);
+  }
+
+  function isValidTxid(v){
+    if (!v) return false;
+    const s = v.trim();
+    if (s.length !== REQUIRED_HEX_LEN) return false;
+    return /^[0-9a-fA-F]{64}$/.test(s);
+  }
+
+  function validateFile(file){
+    if (!file) return { ok:false, reason:"Aucun fichier" };
+    const okType = ["image/png","image/jpeg"].includes(file.type);
+    if (!okType) return { ok:false, reason:"Format invalide. Utilisez PNG ou JPG." };
+    if (file.size > MAX_FILE_BYTES) return { ok:false, reason:"Fichier trop volumineux (max 2 Mo)." };
+    return { ok:true };
+  }
+
+  const form = document.getElementById("paymentForm");
+  const errorBox = document.getElementById("formError");
+  const overlay = document.getElementById("overlay");
+  const progressBar = document.getElementById("progressBar");
+  const confirmBtn = document.getElementById("confirmBtn");
+  const successMsg = document.getElementById("successMsg");
+
+  form.addEventListener("submit", function(e){
+    e.preventDefault();
+    errorBox.style.display = "none";
+    errorBox.textContent = "";
+
+    const txid = document.getElementById("txid").value;
+    const fileInput = document.getElementById("fileUpload");
+    const file = fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
+
+    const txOk = isValidTxid(txid);
+    let fileOk = false, fileErr = "";
+    if (file) {
+      const vf = validateFile(file);
+      fileOk = vf.ok;
+      if (!vf.ok) fileErr = vf.reason;
+    }
+
+    // Require at least one valid proof (TXID OR valid file)
+    if (!txOk && !fileOk) {
+      let msg = "Veuillez fournir un justificatif valide :\n";
+      msg += "- TXID de 64 caractères hexadécimaux (0–9, a–f) ;\n";
+      msg += "- ou une capture en PNG/JPG (max 2 Mo).";
+      if (file && fileErr) msg += "\nDétail du fichier : " + fileErr;
+      errorBox.textContent = msg;
+      errorBox.style.display = "block";
+      notify("Justificatif requis.");
+      return;
+    }
+
+    // Simulated reviewing (5 seconds)
+    startReviewing();
+  });
+
+  function startReviewing(){
+    confirmBtn.disabled = true;
+    overlay.style.display = "flex";
+    progressBar.style.width = "0%";
+
+    let elapsed = 0;
+    const duration = 5000;
+    const step = 100; // ms
+
+    const timer = setInterval(()=>{
+      elapsed += step;
+      const pct = Math.min(100, Math.round((elapsed / duration) * 100));
+      progressBar.style.width = pct + "%";
+      if (elapsed >= duration) {
+        clearInterval(timer);
+        overlay.style.display = "none";
+        showSuccess();
+      }
+    }, step);
+  }
+
+  function showSuccess(){
+    // Show fixed membership code banner
+    document.getElementById("membershipCodeBox").style.display = "block";
+    // Reveal continue section
+    document.getElementById("continueContainer").style.display = "block";
+    // Success message inside main card
+    successMsg.style.display = "block";
+    // Move focus for accessibility
+    document.getElementById("membershipCodeBox").focus?.();
+    // Smooth scroll to continue area
+    document.getElementById("continueContainer").scrollIntoView({ behavior:"smooth" });
+    notify("Paiement confirmé. Code affiché.");
+  }
+</script>
+
+</body>
+</html>
